@@ -77,6 +77,8 @@ def main():
 
         if command == "help":
             print_help()
+        if command =="test":
+            print("Running automated benchmark")
             
         elif command == "run":
             if len(parts) == 4:
