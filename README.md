@@ -1,3 +1,12 @@
+## CSUBatch Project
+CPSC 6179 Software Project Planning and Management
+Columbus State University
+
+### Team Members
+- Robert Daniel
+- Victor Dudley
+- Khushi Jani
+
 # CSUbatch v1.0
 
 ## Overview
