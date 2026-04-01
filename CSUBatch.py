@@ -21,6 +21,10 @@ current_policy = "FCFS"
 running_job = None
 running_job_start_time = 0
 
+# Global counters for job tracking
+total_jobs_submitted = 0
+total_jobs_processed = 0
+
 # Threading locks for synchronization (US 5)
 queue_lock = threading.Lock()
 queue_cond = threading.Condition(queue_lock)
@@ -103,6 +107,8 @@ def dispatcher_thread():
             # Clean up the running job state after completion
             with queue_lock:
                 running_job = None
+                global total_jobs_processed
+                total_jobs_processed += 1
 
 def main():
     global current_policy, keep_running, job_queue, running_job, running_job_start_time
@@ -148,6 +154,10 @@ def main():
                         if len(job_queue) < MAX_JOBS:
                             new_job = Job(job_name, exec_time, priority)
                             job_queue.append(new_job)
+                            
+                            # Increment total submitted counter
+                            global total_jobs_submitted
+                            total_jobs_submitted += 1
                             
                             # Enforce chosen policy immediately
                             reorder_queue()
@@ -195,8 +205,8 @@ def main():
                 print(f"Scheduling policy is switched to {current_policy}. All {len(job_queue)} waiting jobs have been rescheduled.")
                 
         elif command == "quit":
-            with queue_lock:
-                print(f"Total jobs submitted/processed: {len(job_queue) + (1 if running_job else 0)}")
+            print(f"Total jobs submitted: {total_jobs_submitted}")
+            print(f"Total jobs processed: {total_jobs_processed}")
             print("Exiting CSUbatch.")
             break
             
