@@ -3,7 +3,7 @@ import time
 import sys
 import datetime
 import os
-import random  # Added for benchmarking workloads
+import random  
 
 
 # Define the Job structure
@@ -12,18 +12,18 @@ class Job:
         self.name = name
         self.time = exec_time
         self.priority = priority
-        self.arrival_time = time.time()  # Used for exact sorting calculations
-        self.arrival_time_str = datetime.datetime.now().strftime("%H:%M:%S")  # Used for the list display
+        self.arrival_time = time.time()  
+        self.arrival_time_str = datetime.datetime.now().strftime("%H:%M:%S")  
         self.status = "Wait"
 
-        # New fields for US 6 (Metrics Tracking)
+        # Fields for Metrics Tracking
         self.start_time = 0
         self.finish_time = 0
 
 
 # Global Queue and Synchronization Variables
 job_queue = []
-completed_jobs = []  # US 6: Store completed jobs to calculate metrics
+completed_jobs = []  
 MAX_JOBS = 100
 current_policy = "FCFS"
 running_job = None
@@ -33,7 +33,7 @@ running_job_start_time = 0
 total_jobs_submitted = 0
 total_jobs_processed = 0
 
-# Threading locks for synchronization (US 5 & US 7)
+# Threading locks for synchronization 
 queue_lock = threading.Lock()
 queue_cond = threading.Condition(queue_lock)
 
@@ -70,7 +70,7 @@ def scheduler_thread():
 
 
 def dispatcher_thread():
-    """Handles executing jobs and enforces non-preemption."""
+    """Handles executing jobs and enforces non-preemption using Linux System Calls."""
     global keep_running, job_queue, running_job, running_job_start_time, completed_jobs
 
     while keep_running:
@@ -89,12 +89,32 @@ def dispatcher_thread():
                 running_job.status = "Run"
                 running_job_start_time = time.time()
 
-                # US 6: Record actual start time
+                # Record actual start time
                 job_to_run.start_time = time.time()
 
-        # Execute job OUTSIDE the lock
+        # Execute job OUTSIDE the lock using os.fork() and os.execv()
         if job_to_run:
-            time.sleep(job_to_run.time)  # Simulated CPU burst execution
+            try:
+                pid = os.fork()
+                
+                if pid == 0:
+                    # Child Process: Execute the workload
+                    try:
+                        # We use /bin/sleep as a native way to consume exact wall-clock time
+                        os.execv('/bin/sleep', ['sleep', str(job_to_run.time)])
+                    except OSError as e:
+                        print(f"\n[Error] Failed to execute job {job_to_run.name}: {e}")
+                        os._exit(1) # Critical: force child exit if execv fails to prevent fork bombs
+                
+                elif pid > 0:
+                    # Parent Process (Dispatcher): Wait for the child process to finish
+                    os.waitpid(pid, 0)
+                    
+            except AttributeError:
+                # Fallback purely for local development if run on Windows
+                time.sleep(job_to_run.time)
+            except OSError as e:
+                print(f"\n[Error] Fork failed: {e}")
 
             # Clean up the running job state and log for metrics
             job_to_run.finish_time = time.time()
@@ -103,11 +123,11 @@ def dispatcher_thread():
                 running_job = None
                 global total_jobs_processed
                 total_jobs_processed += 1
-                completed_jobs.append(job_to_run)  # Store for metric calculations
+                completed_jobs.append(job_to_run)  
 
 
 def benchmark_runner(benchmark_name, policy, num_jobs, arrival_rate, max_cpu, max_pri):
-    """Background thread to generate random workloads and calculate metrics (US 4 & US 6)"""
+    """Background thread to generate random workloads and calculate metrics"""
     global total_jobs_submitted, current_policy
 
     # Switch policy before starting
@@ -119,7 +139,7 @@ def benchmark_runner(benchmark_name, policy, num_jobs, arrival_rate, max_cpu, ma
 
     test_start_time = time.time()
 
-    # US 4: Generate randomized workloads
+    # Generate randomized workloads
     for i in range(1, num_jobs + 1):
         time.sleep(arrival_rate)
         cpu_t = random.randint(1, max_cpu)
@@ -134,7 +154,7 @@ def benchmark_runner(benchmark_name, policy, num_jobs, arrival_rate, max_cpu, ma
                 reorder_queue()
                 queue_cond.notify()
 
-    print(f"\n[Benchmark '{benchmark_name}' submission phase complete. Waiting for dispatcher to finish processing...]")
+    print(f"\n[Benchmark '{benchmark_name}' submission phase complete. Waiting for dispatcher...]")
 
     # Wait for the queue to empty out
     while True:
@@ -145,7 +165,7 @@ def benchmark_runner(benchmark_name, policy, num_jobs, arrival_rate, max_cpu, ma
 
     test_end_time = time.time()
 
-    # US 6: Calculate Metrics
+    # Calculate Metrics
     print(f"\n=== Benchmark '{benchmark_name}' Metrics ===")
 
     # Filter completed_jobs to only include this specific benchmark run
@@ -196,7 +216,6 @@ def main():
             print_help()
 
         elif command == "test":
-            # Expected usage: test <name> <policy> <num_jobs> <arrival_rate> <max_cpu> <max_pri>
             if len(parts) >= 6:
                 benchmark_name = parts[1]
                 policy = parts[2].upper()
@@ -209,7 +228,6 @@ def main():
                     max_cpu = int(parts[5])
                     max_pri = int(parts[6]) if len(parts) == 7 else 10
 
-                    # Run the benchmark logic in a separate thread so the shell remains responsive
                     threading.Thread(target=benchmark_runner,
                                      args=(benchmark_name, policy, num_jobs, arrival_rate, max_cpu, max_pri),
                                      daemon=True).start()
